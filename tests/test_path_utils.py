@@ -5,8 +5,10 @@ import pytest
 from app.path_utils import (
     decode_path_byte,
     first_hop_hex,
+    parse_packet_envelope,
     path_wire_len,
     split_path_hex,
+    validate_path_byte,
 )
 
 
@@ -79,6 +81,33 @@ class TestPathWireLen:
         assert path_wire_len(2, 2) == 4
         assert path_wire_len(1, 3) == 3
         assert path_wire_len(0, 1) == 0
+
+
+class TestValidatePathByte:
+    def test_accepts_valid_multibyte_path_len(self):
+        hop_count, hash_size, byte_len = validate_path_byte(0x42)
+        assert (hop_count, hash_size, byte_len) == (2, 2, 4)
+
+    def test_rejects_oversize_path(self):
+        with pytest.raises(ValueError, match="MAX_PATH_SIZE"):
+            validate_path_byte(0xBF)
+
+
+class TestParsePacketEnvelope:
+    def test_parses_valid_packet(self):
+        envelope = parse_packet_envelope(bytes([0x15, 0x42, 0xAA, 0xBB, 0xCC, 0xDD]) + b"hi")
+        assert envelope is not None
+        assert envelope.hop_count == 2
+        assert envelope.hash_size == 2
+        assert envelope.path == bytes([0xAA, 0xBB, 0xCC, 0xDD])
+        assert envelope.payload == b"hi"
+
+    def test_rejects_packet_with_no_payload(self):
+        assert parse_packet_envelope(bytes([0x15, 0x02, 0xAA, 0xBB])) is None
+
+    def test_rejects_oversize_path_encoding(self):
+        packet = bytes([0x15, 0xBF]) + bytes(189) + b"x"
+        assert parse_packet_envelope(packet) is None
 
 
 class TestSplitPathHex:

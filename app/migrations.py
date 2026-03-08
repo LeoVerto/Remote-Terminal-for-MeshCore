@@ -452,43 +452,14 @@ async def _migrate_004_add_payload_hash_column(conn: aiosqlite.Connection) -> No
 
 def _extract_payload_for_hash(raw_packet: bytes) -> bytes | None:
     """
-    Extract payload from a raw packet for hashing (migration-local copy of decoder logic).
+    Extract payload from a raw packet for hashing using canonical framing validation.
 
     Returns the payload bytes, or None if packet is malformed.
     """
-    if len(raw_packet) < 2:
-        return None
+    from app.path_utils import parse_packet_envelope
 
-    try:
-        header = raw_packet[0]
-        route_type = header & 0x03
-        offset = 1
-
-        # Skip transport codes if present (TRANSPORT_FLOOD=0, TRANSPORT_DIRECT=3)
-        if route_type in (0x00, 0x03):
-            if len(raw_packet) < offset + 4:
-                return None
-            offset += 4
-
-        # Get path byte (packed as [hash_mode:2][hop_count:6])
-        if len(raw_packet) < offset + 1:
-            return None
-        path_byte = raw_packet[offset]
-        offset += 1
-        hash_mode = (path_byte >> 6) & 0x03
-        hop_count = path_byte & 0x3F
-        hash_size = (hash_mode + 1) if hash_mode < 3 else 1
-        path_wire_len = hop_count * hash_size
-
-        # Skip path bytes
-        if len(raw_packet) < offset + path_wire_len:
-            return None
-        offset += path_wire_len
-
-        # Rest is payload (may be empty, matching decoder.py behavior)
-        return raw_packet[offset:]
-    except (IndexError, ValueError):
-        return None
+    envelope = parse_packet_envelope(raw_packet)
+    return envelope.payload if envelope is not None else None
 
 
 async def _migrate_005_backfill_payload_hashes(conn: aiosqlite.Connection) -> None:
@@ -638,42 +609,14 @@ async def _migrate_006_replace_path_len_with_path(conn: aiosqlite.Connection) ->
 
 def _extract_path_from_packet(raw_packet: bytes) -> str | None:
     """
-    Extract path hex string from a raw packet (migration-local copy of decoder logic).
+    Extract path hex string from a raw packet using canonical framing validation.
 
     Returns the path as a hex string, or None if packet is malformed.
     """
-    if len(raw_packet) < 2:
-        return None
+    from app.path_utils import parse_packet_envelope
 
-    try:
-        header = raw_packet[0]
-        route_type = header & 0x03
-        offset = 1
-
-        # Skip transport codes if present (TRANSPORT_FLOOD=0, TRANSPORT_DIRECT=3)
-        if route_type in (0x00, 0x03):
-            if len(raw_packet) < offset + 4:
-                return None
-            offset += 4
-
-        # Get path byte (packed as [hash_mode:2][hop_count:6])
-        if len(raw_packet) < offset + 1:
-            return None
-        path_byte = raw_packet[offset]
-        offset += 1
-        hash_mode = (path_byte >> 6) & 0x03
-        hop_count = path_byte & 0x3F
-        hash_size = (hash_mode + 1) if hash_mode < 3 else 1
-        path_wire_len = hop_count * hash_size
-
-        # Extract path bytes
-        if len(raw_packet) < offset + path_wire_len:
-            return None
-        path_bytes = raw_packet[offset : offset + path_wire_len]
-
-        return path_bytes.hex()
-    except (IndexError, ValueError):
-        return None
+    envelope = parse_packet_envelope(raw_packet)
+    return envelope.path.hex() if envelope is not None else None
 
 
 async def _migrate_007_backfill_message_paths(conn: aiosqlite.Connection) -> None:

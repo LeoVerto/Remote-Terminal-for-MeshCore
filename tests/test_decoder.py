@@ -110,6 +110,11 @@ class TestPacketParsing:
 
         assert parse_packet(header) is None
 
+    def test_parse_packet_with_no_payload_returns_none(self):
+        """Firmware rejects packets that end exactly after the path."""
+        packet = bytes([0x15, 0x02, 0xAA, 0xBB])
+        assert parse_packet(packet) is None
+
 
 class TestMultiBytePathParsing:
     """Test packet parsing with multi-byte hop path encoding."""
@@ -150,6 +155,11 @@ class TestMultiBytePathParsing:
         result = parse_packet(packet)
         assert result is None
 
+    def test_parse_oversize_path_len_returns_none(self):
+        """Oversized-but-well-formed path bytes are invalid per firmware."""
+        packet = bytes([0x15, 0xBF]) + bytes(189) + b"payload"
+        assert parse_packet(packet) is None
+
     def test_parse_two_byte_hops_truncated_returns_none(self):
         """Truncated path data for multi-byte hops returns None."""
         # path_byte = 0x42 → 2 hops × 2 bytes = 4 bytes needed, only 2 provided
@@ -183,6 +193,11 @@ class TestMultiBytePathParsing:
 
         result = extract_payload(packet)
         assert result is None
+
+    def test_extract_payload_no_payload_returns_none(self):
+        """extract_payload matches firmware and rejects payload-less packets."""
+        packet = bytes([0x15, 0x02, 0xAA, 0xBB])
+        assert extract_payload(packet) is None
 
     def test_parse_direct_two_byte_hops_with_transport(self):
         """TRANSPORT_DIRECT with 2-byte hops parses correctly."""

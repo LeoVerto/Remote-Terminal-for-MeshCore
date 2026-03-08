@@ -1,6 +1,8 @@
 import type { Contact, RadioConfig, MessagePath } from '../types';
 import { CONTACT_TYPE_REPEATER } from '../types';
 
+const MAX_PATH_BYTES = 64;
+
 export interface PathHop {
   prefix: string; // Hex hop identifier (e.g., "1A" for 1-byte, "1A2B" for 2-byte)
   matches: Contact[]; // Matched repeaters (empty=unknown, multiple=ambiguous)
@@ -62,6 +64,61 @@ export function parsePathHops(path: string | null | undefined, hopCount?: number
   }
 
   return hops;
+}
+
+/**
+ * Extract the payload portion from a raw packet hex string using firmware-equivalent
+ * path-byte validation. Returns null for malformed or payload-less packets.
+ */
+export function extractPacketPayloadHex(packetHex: string): string | null {
+  if (packetHex.length < 4) {
+    return null;
+  }
+
+  try {
+    const normalized = packetHex.toUpperCase();
+    const header = parseInt(normalized.slice(0, 2), 16);
+    const routeType = header & 0x03;
+    let offset = 2;
+
+    if (routeType === 0x00 || routeType === 0x03) {
+      if (normalized.length < offset + 8) {
+        return null;
+      }
+      offset += 8;
+    }
+
+    if (normalized.length < offset + 2) {
+      return null;
+    }
+    const pathByte = parseInt(normalized.slice(offset, offset + 2), 16);
+    offset += 2;
+
+    const hashMode = (pathByte >> 6) & 0x03;
+    if (hashMode === 0x03) {
+      return null;
+    }
+    const hopCount = pathByte & 0x3f;
+    const hashSize = hashMode + 1;
+    const pathByteLen = hopCount * hashSize;
+    if (pathByteLen > MAX_PATH_BYTES) {
+      return null;
+    }
+
+    const pathHexChars = pathByteLen * 2;
+    if (normalized.length < offset + pathHexChars) {
+      return null;
+    }
+    offset += pathHexChars;
+
+    if (offset >= normalized.length) {
+      return null;
+    }
+
+    return normalized.slice(offset);
+  } catch {
+    return null;
+  }
 }
 
 /**

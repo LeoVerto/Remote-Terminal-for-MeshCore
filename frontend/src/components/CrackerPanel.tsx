@@ -5,44 +5,7 @@ import type { RawPacket, Channel } from '../types';
 import { api } from '../api';
 import { toast } from './ui/sonner';
 import { cn } from '@/lib/utils';
-
-/**
- * Extract the payload from a raw packet hex string, skipping header and path.
- * Returns the payload as a hex string, or null if malformed.
- */
-function extractPayload(packetHex: string): string | null {
-  if (packetHex.length < 4) return null; // Need at least 2 bytes
-
-  try {
-    const header = parseInt(packetHex.slice(0, 2), 16);
-    const routeType = header & 0x03;
-    let offset = 2; // 1 byte = 2 hex chars
-
-    // Skip transport codes if present (TRANSPORT_FLOOD=0, TRANSPORT_DIRECT=3)
-    if (routeType === 0x00 || routeType === 0x03) {
-      if (packetHex.length < offset + 8) return null; // Need 4 more bytes
-      offset += 8; // 4 bytes = 8 hex chars
-    }
-
-    // Get path byte (packed as [hash_mode:2][hop_count:6])
-    if (packetHex.length < offset + 2) return null;
-    const pathByte = parseInt(packetHex.slice(offset, offset + 2), 16);
-    offset += 2;
-    const hashMode = (pathByte >> 6) & 0x03;
-    const hopCount = pathByte & 0x3f;
-    const hashSize = hashMode < 3 ? hashMode + 1 : 1;
-    const pathHexChars = hopCount * hashSize * 2;
-
-    // Skip path data
-    if (packetHex.length < offset + pathHexChars) return null;
-    offset += pathHexChars;
-
-    // Rest is payload
-    return packetHex.slice(offset);
-  } catch {
-    return null;
-  }
-}
+import { extractPacketPayloadHex } from '../utils/pathUtils';
 
 interface CrackedRoom {
   roomName: string;
@@ -180,7 +143,7 @@ export function CrackerPanel({
       for (const packet of undecryptedGroupText) {
         if (!newQueue.has(packet.id)) {
           // Extract payload and check for duplicates
-          const payload = extractPayload(packet.data);
+          const payload = extractPacketPayloadHex(packet.data);
           if (payload && seenPayloadsRef.current.has(payload)) {
             // Skip - we already have a packet with this payload queued
             newSkipped++;

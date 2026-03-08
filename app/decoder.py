@@ -107,87 +107,30 @@ def extract_payload(raw_packet: bytes) -> bytes | None:
 
     Returns the payload bytes, or None if packet is malformed.
     """
-    from app.path_utils import decode_path_byte, path_wire_len
+    from app.path_utils import parse_packet_envelope
 
-    if len(raw_packet) < 2:
-        return None
-
-    try:
-        header = raw_packet[0]
-        route_type = header & 0x03
-        offset = 1
-
-        # Skip transport codes if present (TRANSPORT_FLOOD=0, TRANSPORT_DIRECT=3)
-        if route_type in (0x00, 0x03):
-            if len(raw_packet) < offset + 4:
-                return None
-            offset += 4
-
-        # Decode packed path byte
-        if len(raw_packet) < offset + 1:
-            return None
-        hop_count, hash_size = decode_path_byte(raw_packet[offset])
-        offset += 1
-
-        # Skip path data
-        path_bytes = path_wire_len(hop_count, hash_size)
-        if len(raw_packet) < offset + path_bytes:
-            return None
-        offset += path_bytes
-
-        # Rest is payload
-        return raw_packet[offset:]
-    except (ValueError, IndexError):
-        return None
+    envelope = parse_packet_envelope(raw_packet)
+    return envelope.payload if envelope is not None else None
 
 
 def parse_packet(raw_packet: bytes) -> PacketInfo | None:
     """Parse a raw packet and extract basic info."""
-    from app.path_utils import decode_path_byte, path_wire_len
+    from app.path_utils import parse_packet_envelope
 
-    if len(raw_packet) < 2:
+    envelope = parse_packet_envelope(raw_packet)
+    if envelope is None:
         return None
-
     try:
-        header = raw_packet[0]
-        route_type = RouteType(header & 0x03)
-        payload_type = PayloadType((header >> 2) & 0x0F)
-        payload_version = (header >> 6) & 0x03
-
-        offset = 1
-
-        # Skip transport codes if present
-        if route_type in (RouteType.TRANSPORT_FLOOD, RouteType.TRANSPORT_DIRECT):
-            if len(raw_packet) < offset + 4:
-                return None
-            offset += 4
-
-        # Decode packed path byte
-        if len(raw_packet) < offset + 1:
-            return None
-        hop_count, hash_size = decode_path_byte(raw_packet[offset])
-        offset += 1
-
-        # Extract path data
-        path_byte_len = path_wire_len(hop_count, hash_size)
-        if len(raw_packet) < offset + path_byte_len:
-            return None
-        path = raw_packet[offset : offset + path_byte_len]
-        offset += path_byte_len
-
-        # Rest is payload
-        payload = raw_packet[offset:]
-
         return PacketInfo(
-            route_type=route_type,
-            payload_type=payload_type,
-            payload_version=payload_version,
-            path_length=hop_count,
-            path_hash_size=hash_size,
-            path=path,
-            payload=payload,
+            route_type=RouteType(envelope.route_type),
+            payload_type=PayloadType(envelope.payload_type),
+            payload_version=envelope.payload_version,
+            path_length=envelope.hop_count,
+            path_hash_size=envelope.hash_size,
+            path=envelope.path,
+            payload=envelope.payload,
         )
-    except (ValueError, IndexError):
+    except ValueError:
         return None
 
 

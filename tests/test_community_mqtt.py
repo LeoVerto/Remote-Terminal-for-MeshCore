@@ -226,7 +226,7 @@ class TestPacketFormatConversion:
 
     def test_packet_type_extraction(self):
         # Header 0x14 = type 5, route 0 (TRANSPORT_FLOOD): header + 4 transport + path_len.
-        data = {"timestamp": 0, "data": "140102030400", "snr": None, "rssi": None}
+        data = {"timestamp": 0, "data": "140102030400AA", "snr": None, "rssi": None}
         result = _format_raw_packet(data, "Node", "AA" * 32)
         assert result["packet_type"] == "5"
         assert result["route"] == "F"
@@ -235,10 +235,10 @@ class TestPacketFormatConversion:
         # Test all 4 route types (matches meshcore-packet-capture)
         # TRANSPORT_FLOOD=0 -> "F", FLOOD=1 -> "F", DIRECT=2 -> "D", TRANSPORT_DIRECT=3 -> "T"
         samples = [
-            ("000102030400", "F"),  # TRANSPORT_FLOOD: header + transport + path_len
-            ("0100", "F"),  # FLOOD: header + path_len
-            ("0200", "D"),  # DIRECT: header + path_len
-            ("030102030400", "T"),  # TRANSPORT_DIRECT: header + transport + path_len
+            ("000102030400AA", "F"),  # TRANSPORT_FLOOD: header + transport + path_len + payload
+            ("0100AA", "F"),  # FLOOD: header + path_len + payload
+            ("0200AA", "D"),  # DIRECT: header + path_len + payload
+            ("030102030400AA", "T"),  # TRANSPORT_DIRECT: header + transport + path_len + payload
         ]
         for raw_hex, expected in samples:
             data = {"timestamp": 0, "data": raw_hex, "snr": None, "rssi": None}
@@ -274,7 +274,7 @@ class TestPacketFormatConversion:
         assert result["path"] == "aa,bb"
 
     def test_direct_route_includes_empty_path_field(self):
-        data = {"timestamp": 0, "data": "0200", "snr": 1.0, "rssi": -70}
+        data = {"timestamp": 0, "data": "0200AA", "snr": 1.0, "rssi": -70}
         result = _format_raw_packet(data, "Node", "AA" * 32)
         assert result["route"] == "D"
         assert "path" in result
@@ -432,6 +432,18 @@ class TestCalculatePacketHash:
         raw = bytes([0x09, 0x42, 0xAA, 0xBB])
         assert _calculate_packet_hash(raw) == "0" * 16
 
+    def test_reserved_mode_returns_zeroes(self):
+        raw = bytes([0x09, 0xC1, 0xAA, 0xBB, 0xCC])
+        assert _calculate_packet_hash(raw) == "0" * 16
+
+    def test_oversize_path_len_returns_zeroes(self):
+        raw = bytes([0x09, 0xBF]) + bytes(189) + b"payload"
+        assert _calculate_packet_hash(raw) == "0" * 16
+
+    def test_no_payload_returns_zeroes(self):
+        raw = bytes([0x09, 0x02, 0xAA, 0xBB])
+        assert _calculate_packet_hash(raw) == "0" * 16
+
     def test_multibyte_transport_flood_with_2byte_hops(self):
         """TRANSPORT_FLOOD with 2-byte hops correctly skips transport codes + path."""
         import hashlib
@@ -526,6 +538,21 @@ class TestDecodePacketFieldsMultibyte:
         route, ptype, plen, path_values, payload_type = _decode_packet_fields(raw)
         assert path_values == []
         assert plen == "0"
+
+    def test_reserved_mode_returns_defaults(self):
+        raw = bytes([0x09, 0xC1, 0xAA, 0xBB, 0xCC])
+        route, ptype, plen, path_values, payload_type = _decode_packet_fields(raw)
+        assert (route, ptype, plen, path_values, payload_type) == ("U", "0", "0", [], None)
+
+    def test_oversize_path_len_returns_defaults(self):
+        raw = bytes([0x09, 0xBF]) + bytes(189) + b"payload"
+        route, ptype, plen, path_values, payload_type = _decode_packet_fields(raw)
+        assert (route, ptype, plen, path_values, payload_type) == ("U", "0", "0", [], None)
+
+    def test_no_payload_returns_defaults(self):
+        raw = bytes([0x09, 0x02, 0xAA, 0xBB])
+        route, ptype, plen, path_values, payload_type = _decode_packet_fields(raw)
+        assert (route, ptype, plen, path_values, payload_type) == ("U", "0", "0", [], None)
 
 
 class TestCommunityMqttPublisher:

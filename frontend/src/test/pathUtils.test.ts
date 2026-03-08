@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parsePathHops,
+  extractPacketPayloadHex,
   findContactsByPrefix,
   calculateDistance,
   resolvePath,
@@ -104,6 +105,28 @@ describe('parsePathHops', () => {
   it('handles 2-byte hops with many hops', () => {
     // 3 hops × 4 chars = 12 hex chars
     expect(parsePathHops('AABB11223344', 3)).toEqual(['AABB', '1122', '3344']);
+  });
+});
+
+describe('extractPacketPayloadHex', () => {
+  it('extracts payload from legacy 1-byte-hop packet', () => {
+    expect(extractPacketPayloadHex('0902AABB48656C6C6F')).toBe('48656C6C6F');
+  });
+
+  it('extracts payload from 2-byte-hop packet', () => {
+    expect(extractPacketPayloadHex('0942AABBCCDD48656C6C6F')).toBe('48656C6C6F');
+  });
+
+  it('rejects reserved mode 3', () => {
+    expect(extractPacketPayloadHex('09C1AABBCCDDEEFF')).toBeNull();
+  });
+
+  it('rejects oversized path encoding', () => {
+    expect(extractPacketPayloadHex(`09BF${'AA'.repeat(189)}4869`)).toBeNull();
+  });
+
+  it('rejects packets with no payload after path', () => {
+    expect(extractPacketPayloadHex('0902AABB')).toBeNull();
   });
 });
 
