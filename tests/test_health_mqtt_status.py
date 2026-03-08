@@ -43,13 +43,19 @@ class TestHealthFanoutStatus:
     @pytest.mark.asyncio
     async def test_health_status_ok_when_connected(self, test_db):
         """Health status is 'ok' when radio is connected."""
-        with patch(
-            "app.routers.health.RawPacketRepository.get_oldest_undecrypted", return_value=None
+        with (
+            patch(
+                "app.routers.health.RawPacketRepository.get_oldest_undecrypted", return_value=None
+            ),
+            patch("app.routers.health.radio_manager") as mock_rm,
         ):
+            mock_rm.is_setup_in_progress = False
+            mock_rm.is_setup_complete = True
             data = await build_health_data(True, "Serial: /dev/ttyUSB0")
 
         assert data["status"] == "ok"
         assert data["radio_connected"] is True
+        assert data["radio_initializing"] is False
         assert data["connection_info"] == "Serial: /dev/ttyUSB0"
 
     @pytest.mark.asyncio
@@ -62,4 +68,22 @@ class TestHealthFanoutStatus:
 
         assert data["status"] == "degraded"
         assert data["radio_connected"] is False
+        assert data["radio_initializing"] is False
         assert data["connection_info"] is None
+
+    @pytest.mark.asyncio
+    async def test_health_status_degraded_while_radio_initializing(self, test_db):
+        """Health stays degraded while transport is up but post-connect setup is incomplete."""
+        with (
+            patch(
+                "app.routers.health.RawPacketRepository.get_oldest_undecrypted", return_value=None
+            ),
+            patch("app.routers.health.radio_manager") as mock_rm,
+        ):
+            mock_rm.is_setup_in_progress = True
+            mock_rm.is_setup_complete = False
+            data = await build_health_data(True, "Serial: /dev/ttyUSB0")
+
+        assert data["status"] == "degraded"
+        assert data["radio_connected"] is True
+        assert data["radio_initializing"] is True

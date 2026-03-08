@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -34,6 +35,22 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+async def _startup_radio_connect_and_setup() -> None:
+    """Connect/setup the radio in the background so HTTP serving can start immediately."""
+    try:
+        connected = await radio_manager.reconnect(broadcast_on_success=False)
+        if connected:
+            await radio_manager.post_connect_setup()
+            from app.websocket import broadcast_health
+
+            broadcast_health(True, radio_manager.connection_info)
+            logger.info("Connected to radio")
+        else:
+            logger.warning("Failed to connect to radio on startup")
+    except Exception as e:
+        logger.warning("Failed to connect to radio on startup: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage database and radio connection lifecycle."""
@@ -47,13 +64,6 @@ async def lifespan(app: FastAPI):
 
     await ensure_default_channels()
 
-    try:
-        await radio_manager.connect()
-        logger.info("Connected to radio")
-        await radio_manager.post_connect_setup()
-    except Exception as e:
-        logger.warning("Failed to connect to radio on startup: %s", e)
-
     # Always start connection monitor (even if initial connection failed)
     await radio_manager.start_connection_monitor()
 
@@ -65,9 +75,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Failed to start fanout modules: %s", e)
 
+    startup_radio_task = asyncio.create_task(_startup_radio_connect_and_setup())
+    app.state.startup_radio_task = startup_radio_task
+
     yield
 
     logger.info("Shutting down")
+    if startup_radio_task and not startup_radio_task.done():
+        startup_radio_task.cancel()
+        try:
+            await startup_radio_task
+        except asyncio.CancelledError:
+            pass
     await fanout_manager.stop_all()
     await radio_manager.stop_connection_monitor()
     await stop_message_polling()

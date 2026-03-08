@@ -45,7 +45,9 @@ export function useRadioControl() {
 
   const handleReboot = useCallback(async () => {
     await api.rebootRadio();
-    setHealth((prev) => (prev ? { ...prev, radio_connected: false } : prev));
+    setHealth((prev) =>
+      prev ? { ...prev, radio_connected: false, radio_initializing: false } : prev
+    );
     const pollToken = ++rebootPollTokenRef.current;
     const pollUntilReconnected = async () => {
       for (let i = 0; i < 30; i++) {

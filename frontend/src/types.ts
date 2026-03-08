@@ -32,6 +32,7 @@ export interface FanoutStatusEntry {
 export interface HealthStatus {
   status: string;
   radio_connected: boolean;
+  radio_initializing: boolean;
   connection_info: string | null;
   database_size_mb: number;
   oldest_undecrypted_timestamp: number | null;

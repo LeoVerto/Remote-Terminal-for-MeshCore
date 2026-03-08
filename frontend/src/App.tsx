@@ -107,7 +107,6 @@ export function App() {
     health,
     setHealth,
     config,
-    setConfig,
     prevHealthRef,
     fetchConfig,
     handleSaveConfig,
@@ -233,6 +232,12 @@ export function App() {
         const prev = prevHealthRef.current;
         prevHealthRef.current = data;
         setHealth(data);
+        const initializationCompleted =
+          prev !== null &&
+          prev.radio_connected &&
+          prev.radio_initializing &&
+          data.radio_connected &&
+          !data.radio_initializing;
 
         // Show toast on connection status change
         if (prev !== null && prev.radio_connected !== data.radio_connected) {
@@ -243,12 +248,16 @@ export function App() {
                 : undefined,
             });
             // Refresh config after reconnection (may have changed after reboot)
-            api.getRadioConfig().then(setConfig).catch(console.error);
+            fetchConfig();
           } else {
             toast.error('Radio disconnected', {
               description: 'Check radio connection and power',
             });
           }
+        }
+
+        if (initializationCompleted) {
+          fetchConfig();
         }
       },
       onError: (error: { message: string; details?: string }) => {
@@ -376,9 +385,9 @@ export function App() {
       incrementUnread,
       updateMessageAck,
       checkMention,
+      fetchConfig,
       prevHealthRef,
       setHealth,
-      setConfig,
       activeConversationRef,
       hasNewerMessagesRef,
       setActiveConversation,

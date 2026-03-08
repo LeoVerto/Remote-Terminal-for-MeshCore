@@ -68,6 +68,7 @@ describe('useWebSocket dispatch', () => {
     const healthData = {
       status: 'ok',
       radio_connected: true,
+      radio_initializing: false,
       connection_info: 'TCP: 1.2.3.4:4000',
       database_size_mb: 1.5,
       oldest_undecrypted_timestamp: null,

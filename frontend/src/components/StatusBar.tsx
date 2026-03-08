@@ -22,6 +22,12 @@ export function StatusBar({
   onMenuClick,
 }: StatusBarProps) {
   const connected = health?.radio_connected ?? false;
+  const initializing = health?.radio_initializing ?? false;
+  const statusLabel = initializing
+    ? 'Radio Initializing'
+    : connected
+      ? 'Radio OK'
+      : 'Radio Disconnected';
   const [reconnecting, setReconnecting] = useState(false);
 
   const handleReconnect = async () => {
@@ -67,23 +73,19 @@ export function StatusBar({
         RemoteTerm
       </h1>
 
-      <div
-        className="flex items-center gap-1.5"
-        role="status"
-        aria-label={connected ? 'Connected' : 'Disconnected'}
-      >
+      <div className="flex items-center gap-1.5" role="status" aria-label={statusLabel}>
         <div
           className={cn(
             'w-2 h-2 rounded-full transition-colors',
-            connected
-              ? 'bg-status-connected shadow-[0_0_6px_hsl(var(--status-connected)/0.5)]'
-              : 'bg-status-disconnected'
+            initializing
+              ? 'bg-warning'
+              : connected
+                ? 'bg-status-connected shadow-[0_0_6px_hsl(var(--status-connected)/0.5)]'
+                : 'bg-status-disconnected'
           )}
           aria-hidden="true"
         />
-        <span className="hidden lg:inline text-muted-foreground">
-          {connected ? 'Connected' : 'Disconnected'}
-        </span>
+        <span className="hidden lg:inline text-muted-foreground">{statusLabel}</span>
       </div>
 
       {config && (
@@ -106,7 +108,7 @@ export function StatusBar({
         </div>
       )}
 
-      {!connected && (
+      {!connected && !initializing && (
         <button
           onClick={handleReconnect}
           disabled={reconnecting}

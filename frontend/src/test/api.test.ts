@@ -79,6 +79,7 @@ describe('fetchJson (via api methods)', () => {
       const healthData = {
         status: 'connected',
         radio_connected: true,
+        radio_initializing: false,
         connection_info: 'Serial: /dev/ttyUSB0',
         database_size_mb: 1.2,
         oldest_undecrypted_timestamp: null,
