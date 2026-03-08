@@ -176,8 +176,12 @@ class ChannelDetail(BaseModel):
 class MessagePath(BaseModel):
     """A single path that a message took to reach us."""
 
-    path: str = Field(description="Hex-encoded routing path (2 chars per hop)")
+    path: str = Field(description="Hex-encoded routing path")
     received_at: int = Field(description="Unix timestamp when this path was received")
+    path_len: int | None = Field(
+        default=None,
+        description="Hop count. None = legacy (infer as len(path)//2, i.e. 1-byte hops)",
+    )
 
 
 class Message(BaseModel):
