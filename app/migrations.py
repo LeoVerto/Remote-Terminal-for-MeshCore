@@ -456,16 +456,20 @@ def _extract_payload_for_hash(raw_packet: bytes) -> bytes | None:
                 return None
             offset += 4
 
-        # Get path length
+        # Get path byte (packed as [hash_mode:2][hop_count:6])
         if len(raw_packet) < offset + 1:
             return None
-        path_length = raw_packet[offset]
+        path_byte = raw_packet[offset]
         offset += 1
+        hash_mode = (path_byte >> 6) & 0x03
+        hop_count = path_byte & 0x3F
+        hash_size = (hash_mode + 1) if hash_mode < 3 else 1
+        path_wire_len = hop_count * hash_size
 
         # Skip path bytes
-        if len(raw_packet) < offset + path_length:
+        if len(raw_packet) < offset + path_wire_len:
             return None
-        offset += path_length
+        offset += path_wire_len
 
         # Rest is payload (may be empty, matching decoder.py behavior)
         return raw_packet[offset:]
@@ -638,16 +642,20 @@ def _extract_path_from_packet(raw_packet: bytes) -> str | None:
                 return None
             offset += 4
 
-        # Get path length
+        # Get path byte (packed as [hash_mode:2][hop_count:6])
         if len(raw_packet) < offset + 1:
             return None
-        path_length = raw_packet[offset]
+        path_byte = raw_packet[offset]
         offset += 1
+        hash_mode = (path_byte >> 6) & 0x03
+        hop_count = path_byte & 0x3F
+        hash_size = (hash_mode + 1) if hash_mode < 3 else 1
+        path_wire_len = hop_count * hash_size
 
         # Extract path bytes
-        if len(raw_packet) < offset + path_length:
+        if len(raw_packet) < offset + path_wire_len:
             return None
-        path_bytes = raw_packet[offset : offset + path_length]
+        path_bytes = raw_packet[offset : offset + path_wire_len]
 
         return path_bytes.hex()
     except (IndexError, ValueError):

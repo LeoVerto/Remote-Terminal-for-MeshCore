@@ -24,15 +24,18 @@ function extractPayload(packetHex: string): string | null {
       offset += 8; // 4 bytes = 8 hex chars
     }
 
-    // Get path length
+    // Get path byte (packed as [hash_mode:2][hop_count:6])
     if (packetHex.length < offset + 2) return null;
-    const pathLength = parseInt(packetHex.slice(offset, offset + 2), 16);
+    const pathByte = parseInt(packetHex.slice(offset, offset + 2), 16);
     offset += 2;
+    const hashMode = (pathByte >> 6) & 0x03;
+    const hopCount = pathByte & 0x3f;
+    const hashSize = hashMode < 3 ? hashMode + 1 : 1;
+    const pathHexChars = hopCount * hashSize * 2;
 
     // Skip path data
-    const pathBytes = pathLength * 2; // hex chars
-    if (packetHex.length < offset + pathBytes) return null;
-    offset += pathBytes;
+    if (packetHex.length < offset + pathHexChars) return null;
+    offset += pathHexChars;
 
     // Rest is payload
     return packetHex.slice(offset);
