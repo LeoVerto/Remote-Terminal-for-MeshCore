@@ -5,6 +5,10 @@ ARG COMMIT_HASH=unknown
 
 WORKDIR /build
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY frontend/package.json ./
 RUN npm install
 
