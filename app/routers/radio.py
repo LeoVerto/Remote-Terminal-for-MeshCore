@@ -43,7 +43,10 @@ class RadioConfigUpdate(BaseModel):
     tx_power: int | None = Field(default=None, description="Transmit power in dBm")
     radio: RadioSettings | None = None
     path_hash_mode: int | None = Field(
-        default=None, description="Path hash mode (0=1-byte, 1=2-byte, 2=3-byte)"
+        default=None,
+        ge=0,
+        le=2,
+        description="Path hash mode (0=1-byte, 1=2-byte, 2=3-byte)",
     )
 
 
