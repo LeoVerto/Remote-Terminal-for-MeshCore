@@ -13,7 +13,7 @@ RUN VITE_COMMIT_HASH=${COMMIT_HASH} npm run build
 
 
 # Stage 2: Python runtime
-FROM python:3.12-slim
+FROM python:3.12
 
 ARG COMMIT_HASH=unknown
 
@@ -22,13 +22,13 @@ WORKDIR /app
 ENV COMMIT_HASH=${COMMIT_HASH}
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Copy dependency files first for layer caching
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies (no dev/test deps)
-RUN uv sync --frozen --no-dev
+RUN /root/.local/bin/uv sync --frozen --no-dev
 
 # Copy application code
 COPY app/ ./app/
@@ -45,4 +45,4 @@ RUN mkdir -p /app/data
 EXPOSE 8000
 
 # Run the application (we retain root for max compatibility)
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/root/.local/bin/uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
